@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=text2sql_eval
+#SBATCH --job-name=text2sql_omnisql_eval
 #SBATCH --time=02:00:00
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
@@ -11,7 +11,7 @@
 mkdir -p logs
 
 # Print job info
-echo "Starting text2sql evaluation job"
+echo "Starting text2sql evaluation job - OmniSQL model"
 echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $SLURMD_NODENAME"
 echo "Date: $(date)"
@@ -33,8 +33,8 @@ pip install --user vllm transformers huggingface-hub sqlparse tqdm pyyaml
 # Set CUDA visibility
 export CUDA_VISIBLE_DEVICES=0
 
-# Run evaluation
-echo "Starting evaluation..."
+# Run evaluation - Currently configured for OmniSQL model only
+echo "Starting evaluation with OmniSQL model..."
 python scripts/run_eval.py --config configs/experiments/bird_eval.yaml --log-level INFO
 
 echo "Job completed at $(date)" 
