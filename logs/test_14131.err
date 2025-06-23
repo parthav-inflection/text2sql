@@ -1,0 +1,12 @@
+  WARNING: The script tqdm is installed in '/mnt/vast/home/parthav/.local/bin' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+2025-06-23 17:08:21,272 - datasets.bird - INFO - Setting up Bird dataset...
+2025-06-23 17:08:21,313 - datasets.bird - INFO - Created sample Bird data with 2 examples
+2025-06-23 17:08:21,313 - datasets.bird - INFO - Bird dataset setup complete
+2025-06-23 17:08:21,313 - datasets.bird - INFO - Loaded 2 Bird examples
+Traceback (most recent call last):
+  File "/mnt/vast/home/parthav/text2sql/scripts/test_setup.py", line 182, in test_full_pipeline_dry_run
+    from evaluation.evaluator import Evaluator
+  File "/mnt/vast/home/parthav/text2sql/scripts/../src/evaluation/evaluator.py", line 8, in <module>
+    from ..models.vllm_model import VLLMModel
+ImportError: attempted relative import beyond top-level package

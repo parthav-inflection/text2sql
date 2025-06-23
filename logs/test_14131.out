@@ -1,0 +1,74 @@
+========================================
+Text2SQL Evaluation Setup Test
+========================================
+Job ID: 14131
+Node: inflection-1024-prod-1-node-006
+Date: Mon Jun 23 17:08:19 UTC 2025
+Working directory: //mnt/vast/home/parthav/text2sql
+CUDA_VISIBLE_DEVICES: 0
+========================================
+Installing minimal dependencies for testing...
+Defaulting to user installation because normal site-packages is not writeable
+Requirement already satisfied: pyyaml in /usr/lib/python3/dist-packages (5.4.1)
+Requirement already satisfied: torch in /usr/lib/python3/dist-packages (2.4.1)
+Collecting tqdm
+  Downloading tqdm-4.67.1-py3-none-any.whl (78 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 78.5/78.5 KB 1.3 MB/s eta 0:00:00
+Requirement already satisfied: requests in /usr/lib/python3/dist-packages (2.25.1)
+Requirement already satisfied: pandas in /usr/lib/python3/dist-packages (1.3.5)
+Requirement already satisfied: numpy in /usr/lib/python3/dist-packages (1.21.5)
+Installing collected packages: tqdm
+Successfully installed tqdm-4.67.1
+Running setup test...
+🧪 Text2SQL Evaluation Setup Test
+============================================================
+Test started at: 2025-06-23 17:08:21.114242
+Working directory: /mnt/vast/home/parthav/text2sql
+============================================================
+
+==================== Imports ====================
+🔍 Testing imports...
+❌ Import failed: attempted relative import beyond top-level package
+❌ Imports FAILED
+
+==================== Configuration ====================
+📝 Testing configuration loading...
+✅ Loaded test config: test_setup
+✅ All 2 model configs found
+✅ Configuration PASSED
+
+==================== Dataset Setup ====================
+📊 Testing dataset setup...
+✅ Dataset setup successful, loaded 2 examples
+✅ Schema extracted: 77 characters
+✅ SQL execution test passed: [(6,)]
+✅ Dataset Setup PASSED
+
+==================== Model Configuration ====================
+🤖 Testing model configuration...
+❌ Model configuration test failed: No module named 'vllm'
+❌ Model Configuration FAILED
+
+==================== GPU Availability ====================
+🖥️  Testing GPU availability...
+✅ CUDA available: 1 GPU(s)
+✅ Current GPU: NVIDIA H100 80GB HBM3
+✅ GPU Memory - Allocated: 0.0GB, Reserved: 0.0GB
+✅ GPU Availability PASSED
+
+==================== Pipeline Structure ====================
+🚀 Testing full pipeline (dry run)...
+❌ Pipeline test failed: attempted relative import beyond top-level package
+❌ Pipeline Structure FAILED
+
+============================================================
+📋 TEST SUMMARY
+============================================================
+Tests passed: 3/6
+⚠️  SOME TESTS FAILED!
+❌ Fix issues before running full evaluation
+========================================
+Test completed at Mon Jun 23 17:08:23 UTC 2025
+Exit code: 1
+❌ TESTS FAILED - Check logs before running full evaluation
+========================================
