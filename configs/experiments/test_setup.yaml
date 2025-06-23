@@ -1,0 +1,19 @@
+experiment_name: "test_setup"
+dataset:
+  name: "bird"
+  subset_size: 2  # Only test with 2 examples
+  data_dir: "./data/bird"
+  
+models:
+  - "configs/models/qwen3.yaml"
+  - "configs/models/omnisql.yaml"
+
+evaluation:
+  metrics:
+    - "execution_accuracy"
+  batch_size: 1
+  
+output:
+  results_dir: "./results"
+  save_predictions: true
+  save_detailed_logs: true 
