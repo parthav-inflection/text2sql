@@ -5,7 +5,6 @@ dataset:
   data_dir: "./data/bird"
   
 models:
-  - "configs/models/qwen3.yaml"
   - "configs/models/omnisql.yaml"
 
 evaluation:
