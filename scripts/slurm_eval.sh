@@ -21,9 +21,14 @@ echo "Working directory: $(pwd)"
 # source /mnt/vast/home/your_username/miniconda3/etc/profile.d/conda.sh
 # conda activate text2sql
 
-# Install dependencies if needed
-echo "Installing dependencies..."
-pip install -r requirements.txt
+# Use system packages where possible
+echo "Checking dependencies..."
+python3 -c "import torch; print('✅ torch available')" || echo "❌ torch missing"
+python3 -c "import numpy; print('✅ numpy available')" || echo "❌ numpy missing"
+
+# Install only what's needed, using --user to avoid conflicts
+echo "Installing missing dependencies..."
+pip install --user vllm transformers huggingface-hub sqlparse tqdm pyyaml
 
 # Set CUDA visibility
 export CUDA_VISIBLE_DEVICES=0

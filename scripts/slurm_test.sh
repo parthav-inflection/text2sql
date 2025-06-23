@@ -20,9 +20,15 @@ echo "Working directory: $(pwd)"
 echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 echo "========================================"
 
-# Install dependencies
-echo "Installing minimal dependencies for testing..."
-pip install pyyaml torch tqdm requests pandas numpy vllm
+# Use system packages where possible, only install missing ones
+echo "Checking dependencies..."
+python3 -c "import torch; print('✅ torch available')" || echo "❌ torch missing"
+python3 -c "import numpy; print('✅ numpy available')" || echo "❌ numpy missing"
+python3 -c "import pandas; print('✅ pandas available')" || echo "❌ pandas missing"
+
+# Only install packages that aren't available
+echo "Installing only missing dependencies..."
+pip install --user tqdm vllm transformers huggingface-hub sqlparse
 
 # Set CUDA visibility
 export CUDA_VISIBLE_DEVICES=0
