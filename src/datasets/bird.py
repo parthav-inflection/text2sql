@@ -5,7 +5,7 @@ import logging
 from typing import List, Dict, Any, Tuple
 import requests
 from tqdm import tqdm
-from .base import BaseDataset
+from datasets.base import BaseDataset
 
 logger = logging.getLogger(__name__)
 

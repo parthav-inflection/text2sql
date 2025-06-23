@@ -55,7 +55,15 @@ def main():
         
         # Initialize evaluator
         logger.info("Initializing evaluator...")
-        evaluator = Evaluator(config)
+        try:
+            evaluator = Evaluator(config)
+        except ImportError as e:
+            if "vllm" in str(e):
+                logger.error("vLLM not available - this test requires GPU environment")
+                print("❌ vLLM not available - run this test on GPU cluster")
+                return 1
+            else:
+                raise
         
         # Run evaluation
         logger.info("Running evaluation...")

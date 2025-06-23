@@ -22,7 +22,7 @@ echo "========================================"
 
 # Install dependencies
 echo "Installing minimal dependencies for testing..."
-pip install pyyaml torch tqdm requests pandas numpy
+pip install pyyaml torch tqdm requests pandas numpy vllm
 
 # Set CUDA visibility
 export CUDA_VISIBLE_DEVICES=0

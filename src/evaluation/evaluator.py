@@ -5,9 +5,9 @@ from datetime import datetime
 from typing import Dict, List, Any
 from tqdm import tqdm
 
-from ..models.vllm_model import VLLMModel
-from ..datasets.bird import BirdDataset
-from ..utils.config import load_model_config
+from models.vllm_model import VLLMModel
+from datasets.bird import BirdDataset
+from utils.config import load_model_config
 from .metrics import calculate_metrics
 
 logger = logging.getLogger(__name__)

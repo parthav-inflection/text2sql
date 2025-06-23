@@ -1,7 +1,7 @@
 from typing import List, Dict, Any
 import logging
 from vllm import LLM, SamplingParams
-from .base import BaseModel
+from models.base import BaseModel
 
 logger = logging.getLogger(__name__)
 
