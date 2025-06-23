@@ -1,0 +1,19 @@
+experiment_name: "bird_bench_eval"
+dataset:
+  name: "bird"
+  subset_size: 100  # Evaluate on first 100 examples for initial testing
+  data_dir: "./data/bird"
+  
+models:
+  - "configs/models/qwen3.yaml"
+  - "configs/models/omnisql.yaml"
+
+evaluation:
+  metrics:
+    - "execution_accuracy"
+  batch_size: 1  # Process one example at a time
+  
+output:
+  results_dir: "./results"
+  save_predictions: true
+  save_detailed_logs: true 
