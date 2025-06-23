@@ -1,6 +1,7 @@
 import logging
 from typing import List, Dict, Any, Tuple
 import sqlparse
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ def execution_accuracy(predictions: List[str], examples: List[Dict[str, Any]], d
             pred_success, pred_result = dataset.execute_sql(pred_sql, example)
             
             # Execute ground truth SQL
-            gt_sql = example.get("query", "")
+            gt_sql = example.get("SQL", example.get("query", ""))
             gt_success, gt_result = dataset.execute_sql(gt_sql, example)
             
             # Compare results
@@ -39,60 +40,106 @@ def execution_accuracy(predictions: List[str], examples: List[Dict[str, Any]], d
 
 def extract_sql_from_response(response: str) -> str:
     """Extract SQL query from model response."""
-    # Handle common response formats
+    if not response:
+        return ""
+    
     response = response.strip()
     
-    # Look for SQL between ```sql and ``` 
-    if "```sql" in response.lower():
-        start = response.lower().find("```sql") + 6
-        end = response.find("```", start)
-        if end != -1:
-            return response[start:end].strip()
+    # Handle common response formats
     
-    # Look for SQL between ``` and ```
-    if response.startswith("```") and response.count("```") >= 2:
-        lines = response.split("\n")
-        sql_lines = []
-        in_code_block = False
-        for line in lines:
-            if line.startswith("```"):
-                in_code_block = not in_code_block
-                continue
-            if in_code_block:
-                sql_lines.append(line)
-        if sql_lines:
-            return "\n".join(sql_lines).strip()
+    # 1. Look for SQL between ```sql and ``` 
+    sql_block_pattern = r'```sql\s*(.*?)\s*```'
+    match = re.search(sql_block_pattern, response, re.DOTALL | re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
     
-    # If no code blocks, try to find SQL keywords
-    sql_keywords = ["SELECT", "INSERT", "UPDATE", "DELETE", "WITH"]
+    # 2. Look for SQL between ``` and ```
+    code_block_pattern = r'```\s*(.*?)\s*```'
+    match = re.search(code_block_pattern, response, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    
+    # 3. Look for SQL after "SQL Query:" or similar patterns
+    sql_patterns = [
+        r'SQL\s*Query\s*:\s*(.*?)(?:\n\n|\n(?=[A-Z])|$)',
+        r'Query\s*:\s*(.*?)(?:\n\n|\n(?=[A-Z])|$)',
+        r'Answer\s*:\s*(.*?)(?:\n\n|\n(?=[A-Z])|$)',
+    ]
+    
+    for pattern in sql_patterns:
+        match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+    
+    # 4. Look for SQL keywords and extract from there
+    sql_keywords = ["SELECT", "INSERT", "UPDATE", "DELETE", "WITH", "CREATE", "ALTER", "DROP"]
     for keyword in sql_keywords:
-        if keyword in response.upper():
-            # Find the line with SQL keyword and take everything after
-            lines = response.split("\n")
-            for i, line in enumerate(lines):
-                if keyword in line.upper():
-                    return "\n".join(lines[i:]).strip()
+        pattern = rf'\b{keyword}\b'
+        match = re.search(pattern, response, re.IGNORECASE)
+        if match:
+            # Find the start of the SQL statement
+            start_pos = match.start()
+            sql_part = response[start_pos:]
+            
+            # Clean up the SQL part
+            lines = sql_part.split('\n')
+            sql_lines = []
+            
+            for line in lines:
+                line = line.strip()
+                if line:
+                    sql_lines.append(line)
+                    # Stop if we hit explanatory text
+                    if line.endswith(';'):
+                        break
+                    # Stop if next line looks like explanation
+                    if any(stop_word in line.lower() for stop_word in ['explanation', 'this query', 'note:', 'the above']):
+                        break
+            
+            if sql_lines:
+                return ' '.join(sql_lines)
     
-    # Return as-is if no patterns match
-    return response
+    # 5. If no patterns match, clean the response and hope for the best
+    # Remove common prefixes/suffixes
+    response = re.sub(r'^(Here is|Here\'s|The|A|An)\s+', '', response, flags=re.IGNORECASE)
+    response = re.sub(r'(SQL\s+)?(query|statement)\s*:?\s*', '', response, flags=re.IGNORECASE)
+    
+    # Take first line/sentence that looks like SQL
+    lines = response.split('\n')
+    for line in lines:
+        line = line.strip()
+        if line and any(keyword.lower() in line.lower() for keyword in sql_keywords):
+            return line
+    
+    return response.strip()
 
 
-def normalize_result(result: Any) -> Any:
+def normalize_result(result: Any) -> str:
     """Normalize query results for comparison."""
-    if isinstance(result, list):
-        # Sort lists of tuples for consistent comparison
-        if result and isinstance(result[0], tuple):
-            return sorted(result)
-        return sorted(result) if all(isinstance(x, (int, float, str)) for x in result) else result
-    return result
+    if result is None:
+        return ""
+    
+    if isinstance(result, (list, tuple)):
+        # Sort tuples/rows for consistent comparison
+        try:
+            normalized = sorted([tuple(row) if isinstance(row, (list, tuple)) else (row,) for row in result])
+            return str(normalized)
+        except (TypeError, ValueError):
+            # If sorting fails, convert to string as-is
+            return str(result)
+    
+    return str(result)
 
 
-def calculate_metrics(predictions: List[str], examples: List[Dict[str, Any]], dataset, metrics: List[str]) -> Dict[str, float]:
-    """Calculate specified metrics."""
-    results = {}
+def calculate_metrics(predictions: List[str], examples: List[Dict[str, Any]], dataset, metric_names: List[str]) -> Dict[str, float]:
+    """Calculate specified metrics for predictions."""
+    metrics = {}
     
-    if "execution_accuracy" in metrics:
-        results["execution_accuracy"] = execution_accuracy(predictions, examples, dataset)
-        logger.info(f"Execution accuracy: {results['execution_accuracy']:.3f}")
+    for metric_name in metric_names:
+        if metric_name == "execution_accuracy":
+            metrics[metric_name] = execution_accuracy(predictions, examples, dataset)
+        else:
+            logger.warning(f"Unknown metric: {metric_name}")
+            metrics[metric_name] = 0.0
     
-    return results 
+    return metrics 

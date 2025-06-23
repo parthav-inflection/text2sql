@@ -1,7 +1,7 @@
-experiment_name: "bird_bench_eval"
+experiment_name: "bird_minidev_eval"
 dataset:
   name: "bird"
-  subset_size: 100  # Evaluate on first 100 examples for initial testing
+  subset_size: null  # Use full Mini-Dev dataset (500 examples)
   data_dir: "./data/bird"
   
 models:

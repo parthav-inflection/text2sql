@@ -1,11 +1,12 @@
-# Text2SQL Evaluation Scaffolding
+# Text2SQL Evaluation Framework
 
-A minimal, scalable framework for evaluating text2sql models and agent architectures on different benchmarks.
+A scalable framework for evaluating text2sql models on the **BIRD Mini-Dev benchmark** with improved prompting strategies.
 
 ## Features
 
-- **Model Support**: Currently supports vLLM-based models (Qwen3-8B, OmniSQL-7B)
-- **Dataset Support**: Bird benchmark with automatic setup
+- **BIRD Mini-Dev Dataset**: Full integration with the official BIRD Mini-Dev dataset (500 examples)
+- **Model Support**: vLLM-based models (Qwen3-8B, OmniSQL-7B) with optimized prompting
+- **Improved Prompting**: Clean SQL output format without explanations or markdown
 - **GPU Optimized**: Designed for efficient inference on NVIDIA GPUs
 - **Slurm Compatible**: Ready for cluster deployment
 - **Extensible**: Easy to add new models, datasets, and metrics
@@ -25,11 +26,48 @@ mkdir -p data results logs
 ### 2. Run Evaluation
 
 ```bash
-# Run locally
+# Test with small subset (5 examples)
+python scripts/run_eval.py --config configs/experiments/test_setup.yaml
+
+# Full Mini-Dev evaluation (500 examples)
 python scripts/run_eval.py --config configs/experiments/bird_eval.yaml
 
 # Or submit to Slurm
 sbatch scripts/slurm_eval.sh
+```
+
+## BIRD Mini-Dev Dataset
+
+The framework now uses the official **BIRD Mini-Dev dataset** with:
+- **500 high-quality text2SQL pairs** from 11 databases
+- **Difficulty distribution**: 30% simple, 50% moderate, 20% challenging
+- **Automatic download** from official sources
+- **SQLite database execution** for evaluation
+
+### Dataset Statistics
+- Total examples: 500
+- Databases: 11 (debit_card_specializing, financial, formula_1, etc.)
+- Fields: question_id, db_id, question, evidence, SQL, difficulty
+
+## Improved Prompting Strategy
+
+Updated prompting to ensure models output clean SQL queries:
+
+```
+You are a SQL expert. Given the database schema and question, generate a SQL query to answer the question.
+
+Database Schema:
+{schema}
+
+Question: {question}
+
+Instructions:
+- Return only the SQL query, no explanations or additional text
+- Use proper SQL syntax for SQLite
+- Do not include markdown formatting or code blocks
+- End the query with a semicolon
+
+SQL Query:
 ```
 
 ## Configuration
@@ -39,9 +77,9 @@ sbatch scripts/slurm_eval.sh
 Models are configured in `configs/models/`:
 
 ```yaml
-# configs/models/qwen3.yaml
-name: "Qwen3-8B"
-model_path: "Qwen/Qwen3-8B"
+# configs/models/omnisql.yaml
+name: "OmniSQL-7B"
+model_path: "seeklhy/OmniSQL-7B"
 model_type: "vllm"
 generation_config:
   temperature: 0.0
@@ -53,16 +91,13 @@ vllm_config:
 
 ### Experiment Configuration
 
-Experiments are configured in `configs/experiments/`:
-
 ```yaml
 # configs/experiments/bird_eval.yaml
-experiment_name: "bird_bench_eval"
+experiment_name: "bird_minidev_eval"
 dataset:
   name: "bird"
-  subset_size: 100
+  subset_size: null  # Use full Mini-Dev dataset (500 examples)
 models:
-  - "configs/models/qwen3.yaml"
   - "configs/models/omnisql.yaml"
 evaluation:
   metrics:
@@ -78,11 +113,13 @@ text2sql/
 │   └── experiments/        # Experiment configurations
 ├── src/                    # Source code
 │   ├── models/            # Model implementations
-│   ├── datasets/          # Dataset implementations
-│   ├── evaluation/        # Evaluation logic
+│   ├── datasets/          # BIRD Mini-Dev dataset implementation
+│   ├── evaluation/        # Evaluation with improved SQL extraction
 │   └── utils/             # Utilities
 ├── scripts/               # Execution scripts
-├── data/                  # Dataset storage
+├── data/                  # BIRD Mini-Dev dataset storage
+│   └── bird/
+│       └── mini_dev_data/ # Downloaded dataset files
 ├── results/               # Evaluation results
 └── logs/                  # Log files
 ```
@@ -109,42 +146,51 @@ sbatch scripts/slurm_eval.sh
 squeue
 ```
 
-### 3. Monitor Results
-
-```bash
-# Check logs
-tail -f logs/slurm_*.out
-
-# View results
-ls -la results/
-```
-
 ## Results
 
-Results are saved in the `results/` directory with timestamps:
+Results are saved in the `results/` directory with detailed metrics:
 
-- `summary_YYYYMMDD_HHMMSS.json`: Metrics summary
-- `full_results_YYYYMMDD_HHMMSS.json`: Detailed results
-- `{model_name}_YYYYMMDD_HHMMSS.json`: Per-model results
+- **Execution Accuracy**: Compares SQL query results against ground truth
+- **Enhanced SQL Extraction**: Robust parsing of model outputs
+- **Per-example Analysis**: Detailed success/failure tracking
 
 Example summary:
 ```json
 {
-  "experiment_name": "bird_bench_eval",
+  "experiment_name": "bird_minidev_eval",
+  "dataset": "bird",
+  "num_examples": 500,
   "models": {
-    "Qwen3-8B": {
-      "metrics": {
-        "execution_accuracy": 0.850
-      }
-    },
     "OmniSQL-7B": {
       "metrics": {
-        "execution_accuracy": 0.920
+        "execution_accuracy": 0.824
       }
     }
   }
 }
 ```
+
+## Key Improvements
+
+### 1. Real Dataset Integration
+- Replaced placeholder data with official BIRD Mini-Dev dataset
+- Automatic download and extraction from official sources
+- Full 500-example evaluation capability
+
+### 2. Enhanced Prompting
+- Clear instructions for SQL-only output
+- Removal of explanatory text and formatting
+- Optimized for model understanding
+
+### 3. Robust SQL Extraction
+- Multiple parsing strategies for different model outputs
+- Handles various response formats (code blocks, plain text)
+- Improved accuracy in SQL query extraction
+
+### 4. Production Ready
+- No more placeholder implementations
+- Full pipeline testing
+- Ready for large-scale evaluation
 
 ## Extending the Framework
 
@@ -166,33 +212,12 @@ Example summary:
 2. Register in `calculate_metrics()` function
 3. Add to experiment configuration
 
-## Troubleshooting
-
-### Common Issues
-
-1. **GPU Memory Issues**: Reduce `gpu_memory_utilization` in model config
-2. **Model Loading Errors**: Check `trust_remote_code: true` in vLLM config
-3. **Dataset Not Found**: Run `download_and_setup()` manually
-
-### Debugging
-
-```bash
-# Run with debug logging
-python scripts/run_eval.py --config configs/experiments/bird_eval.yaml --log-level DEBUG
-
-# Check GPU usage
-nvidia-smi
-
-# Monitor Slurm job
-tail -f logs/slurm_*.err
-```
-
 ## Performance Tips
 
 - Use `tensor_parallel_size > 1` for multi-GPU inference
 - Adjust `batch_size` based on GPU memory
 - Set `gpu_memory_utilization: 0.9` for maximum utilization
-- Use subset evaluation for quick testing
+- Use subset evaluation for quick testing (`subset_size: 10`)
 
 ## License
 

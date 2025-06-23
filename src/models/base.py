@@ -22,9 +22,17 @@ class BaseModel(ABC):
     
     def format_prompt(self, question: str, schema: str) -> str:
         """Format the input prompt for text2sql generation."""
-        return f"""Given the following database schema:
-{schema}
+        return f"""You are a SQL expert. Given the database schema and question, generate a SQL query to answer the question.
 
-Question: {question}
+                Database Schema:
+                {schema}
 
-Generate a SQL query to answer the question:""" 
+                Question: {question}
+
+                Instructions:
+                - Return only the SQL query, no explanations or additional text
+                - Use proper SQL syntax for SQLite
+                - Do not include markdown formatting or code blocks
+                - End the query with a semicolon
+
+                SQL Query:""" 

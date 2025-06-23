@@ -1,7 +1,7 @@
-experiment_name: "test_setup"
+experiment_name: "test_minidev"
 dataset:
   name: "bird"
-  subset_size: 2  # Only test with 2 examples
+  subset_size: 5  # Test with 5 examples from Mini-Dev
   data_dir: "./data/bird"
   
 models:
