@@ -1,0 +1,46 @@
+name: "StandardAgent"
+description: "Standard Text2SQL agent with configurable modules"
+
+modules:
+  mschema:
+    enabled: true
+    critical: false
+    priority: 10
+    module_config:
+      include_samples: true
+      include_descriptions: true
+      max_sample_values: 3
+  
+  # Future modules to be implemented:
+  # schema_linking:
+  #   enabled: false
+  #   critical: false
+  #   priority: 20
+  #   module_config:
+  #     similarity_threshold: 0.7
+  #     use_embedding_search: true
+  
+  # candidate_generation:
+  #   enabled: false
+  #   critical: false
+  #   priority: 30
+  #   module_config:
+  #     strategies: ["divide_conquer", "execution_plan", "skeleton_icl"]
+  #     max_candidates: 5
+  
+  # self_refinement:
+  #   enabled: false
+  #   critical: false
+  #   priority: 40
+  #   module_config:
+  #     max_iterations: 3
+  #     check_syntax: true
+  #     check_execution: true
+  
+  # candidate_selection:
+  #   enabled: false
+  #   critical: false
+  #   priority: 50
+  #   module_config:
+  #     selection_method: "fine_tuned"
+  #     confidence_threshold: 0.8 

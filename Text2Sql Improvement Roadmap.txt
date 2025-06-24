@@ -1,0 +1,49 @@
+﻿Important: Does our base LLM need to be able to output SQL in different dialects or can we specialize to one? This impacts our choice of base model (i.e. if we can use an open-source fine-tuned model, if we need to fine tune our own model, or if we need to use a more general model that has dialect-agnostic generation abilities)
+
+
+
+
+M-Schema Representation
+* Source: XiYan-SQL: A Multi-Generator Ensemble Framework (#5 on BIRD)
+* Defines a compact, semi-structured format for presenting the database schema to the LLM. Explicitly includes crucial information like data types and primary key markers. 
+* The schema is formatted using special tokens like (DB_ID) and # Table to denote the database and table hierarchy. Each column is represented as a tuple containing its name, data type, description, primary key status, and sample values. Foreign keys are also explicitly listed.
+* An open-source implementation schema is available, this could be drop-in
+Automatic Metadata Generation via Database Profiling
+* Automatic Metadata Extraction for Text-to-SQL (#1 on BIRD w/ only profiling!)
+* Uses the fact that LLMs are good at writing queries, bad at identifying relevant information.
+* Runs systematic queries to collect basic statistics like distinct value counts, min/max values, and data formats. These raw statistics are then transformed into LLM-generated English profiles. These profiles are used to generate candidate queries. We take the union of columns and tables referenced in these queries and feed it as relevant context for the model to write SQL with. 
+
+
+Schema Compression & Linking
+* Source: ReFoRCE Agent (#2 and #3 on SPIDER >> BIRD), XiYan-SQL
+* 2-step process.
+* First, it identifies the most relevant tables and columns for a given question using a combination of keyword and semantic similarity search. This filtered schema is then presented using the M-Schema format (see above) for maximum clarity.
+* First groups tables with similar naming conventions (e.g., common prefixes) to reduce redundancy. It then uses an LLM to perform schema linking, which identifies relevant tables based on the user's question. Sped up using vector indexes (built with tools like FAISS) on metadata and Locality Sensitive Hashing (LSH) on sample values to efficiently find fields that are semantically similar to the query or contain matching literals.
+Multi-Generator Candidate Creation
+* Source: CHASE-SQL (#2 on BIRD), XiYan-SQL
+* Uses multiple strategies in parallel
+* How the techniques work:
+   * Divide & Conquer CoT: The agent prompts an LLM to break the main question into smaller, logically distinct sub-problems, represented as pseudo-SQL query. Then generates a partial SQL query for each sub-problem in sequence, feeding previous solutions back into the context. Finally, all partial SQL solutions are assembled into a single, optimized query.
+   * Execution Plan CoT: This method prompts the LLM to reason in a series of steps that mimic a database engine's query plan. The reasoning path follows a logical sequence: identifying relevant tables, performing operations like filtering or joining, and finally selecting the output columns. This structured thinking is guided by converting the output of a command like EXPLAIN into a human-readable format for the LLM.
+   * Skeleton-Based ICL: To select highly relevant few-shot examples, this technique first identifies named entities in the user's question with a tool like NLTK and replaces them with generic tokens (e.g., "China" becomes <country>) to create a question "skeleton". It then computes the embedding of this skeleton and retrieves training examples with the most similar structures. This focuses the ICL on structural similarity rather than specific values, improving the relevance of the examples.
+Self-Refinement and Iterative Correction
+* Source: ReFoRCE Agent, CHASE-SQL, XiYan-SQL
+* The agent executes generated SQL candidates, catches syntax errors or empty results, and feeds the error messages back to the LLM to correct the query. This iterative process fixes many common mistakes before the final selection step.
+* Initial SQL candidate is executed against the database. If the execution returns a syntax error or an empty result set, this feedback is passed back to the LLM in a new prompt. The LLM then reflects on the error to generate a corrected version, a process that can be repeated for a fixed number of iterations.
+Fine-tuned Selection Model
+* Source: CHASE-SQL, XiYan-SQL
+* Instead of relying on a simple majority vote (which can be wrong), this approach uses a dedicated, fine-tuned model to select the best query. 
+* Formulates selection as a classification task, typically a pairwise comparison. To train the selector model, pairs of correct and incorrect queries are used to create training examples (we can use DPO). The fine-tuned model (e.g., a LoRA-adapted Gemini 1.5 Flash, so not too big) takes two candidate queries as input and outputs which is more likely correct, with the final answer being the candidate that wins the most comparisons.
+Iterative Column Exploration for Ambiguity
+* Source: ReFoRCE Agent
+* When a query is ambiguous and initial candidates fail, agent triggers an exploration mode. It queries the database to sample data and gather more context, like how a human analyst would investigate data to resolve ambiguity.
+* When a query has low confidence (e.g., no consensus in voting), the agent prompts an LLM to generate a series of simple, dynamic SELECT queries with LIMIT clauses to inspect the contents of potentially relevant columns. The results of these exploratory queries is fed back into a final generation step. 
+
+
+
+
+Optimized Scheduling for Production Serving (optional, this may be more layercake related)
+* Source: HEXGEN-TEXT2SQL: Optimizing Inference Requests
+* Impact & Intuition: A Text2SQL agent involves a multi-stage workflow that can be slow. This framework uses a two-level scheduler to manage these steps across a cluster of GPUs. This ensures fast, efficient performance in production, reducing latency and cost.
+* This framework uses a hierarchical scheduler to manage the multi-stage workflow on different hardware. A global dispatcher assigns each LLM request to the most suitable GPU instance by scoring each instance based on its processing power and current queue length. At the local level, each instance uses an urgency-guided priority queue that dynamically re-ranks tasks based on their remaining time to their Service Level Objective (SLO), ensuring time-critical tasks execute first.
+* Reduces latency deadlines by up to 1.67× (average: 1.41×) and improves system throughput by up to 1.75× (average: 1.65×) compared to vLLM
