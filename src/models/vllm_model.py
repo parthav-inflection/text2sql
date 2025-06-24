@@ -47,7 +47,17 @@ class VLLMModel(BaseModel):
             raise RuntimeError("Model not initialized")
         
         logger.info(f"Generating responses for {len(prompts)} prompts")
-        outputs = self.llm.generate(prompts, self.sampling_params)
+        
+        # Add system-level instruction to force SQL-only output
+        system_instruction = "You are a SQL query generator. Output only valid SQL queries with no explanations, comments, or markdown formatting."
+        
+        # Modify prompts to include strong instruction
+        modified_prompts = []
+        for prompt in prompts:
+            modified_prompt = f"{system_instruction}\n\n{prompt}\n\nSQL:"
+            modified_prompts.append(modified_prompt)
+        
+        outputs = self.llm.generate(modified_prompts, self.sampling_params)
         
         results = []
         for output in outputs:

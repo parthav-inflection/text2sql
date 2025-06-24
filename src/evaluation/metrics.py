@@ -47,29 +47,37 @@ def extract_sql_from_response(response: str) -> str:
     
     # Handle common response formats
     
-    # 1. Look for SQL between ```sql and ``` 
+    # 1. Look for SQL between ```sql and ``` (prefer last occurrence for verbose responses)
     sql_block_pattern = r'```sql\s*(.*?)\s*```'
-    match = re.search(sql_block_pattern, response, re.DOTALL | re.IGNORECASE)
-    if match:
-        return match.group(1).strip()
+    matches = re.findall(sql_block_pattern, response, re.DOTALL | re.IGNORECASE)
+    if matches:
+        # Take the last SQL block (often the final answer in verbose responses)
+        sql = matches[-1].strip()
+        if sql:
+            return _clean_sql(sql)
     
-    # 2. Look for SQL between ``` and ```
+    # 2. Look for SQL between ``` and ``` (prefer last occurrence)
     code_block_pattern = r'```\s*(.*?)\s*```'
-    match = re.search(code_block_pattern, response, re.DOTALL)
-    if match:
-        return match.group(1).strip()
+    matches = re.findall(code_block_pattern, response, re.DOTALL)
+    if matches:
+        # Take the last code block
+        sql = matches[-1].strip()
+        if sql and _contains_sql_keywords(sql):
+            return _clean_sql(sql)
     
-    # 3. Look for SQL after "SQL Query:" or similar patterns
+    # 3. Look for SQL after specific patterns (take first occurrence)
     sql_patterns = [
-        r'SQL\s*Query\s*:\s*(.*?)(?:\n\n|\n(?=[A-Z])|$)',
-        r'Query\s*:\s*(.*?)(?:\n\n|\n(?=[A-Z])|$)',
-        r'Answer\s*:\s*(.*?)(?:\n\n|\n(?=[A-Z])|$)',
+        r'(?:Here (?:is|\'s) the SQL query:?\s*\n*)(.*?)(?:\n\n|\n(?=\w+:)|\nThis query|$)',
+        r'(?:SQL (?:Query|query):?\s*\n*)(.*?)(?:\n\n|\n(?=\w+:)|\nThis query|$)',
+        r'(?:Final SQL query:?\s*\n*)(.*?)(?:\n\n|\n(?=\w+:)|\nThis query|$)',
     ]
     
     for pattern in sql_patterns:
         match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
         if match:
-            return match.group(1).strip()
+            sql = match.group(1).strip()
+            if sql and _contains_sql_keywords(sql):
+                return _clean_sql(sql)
     
     # 4. Look for SQL keywords and extract from there
     sql_keywords = ["SELECT", "INSERT", "UPDATE", "DELETE", "WITH", "CREATE", "ALTER", "DROP"]
@@ -88,30 +96,52 @@ def extract_sql_from_response(response: str) -> str:
             for line in lines:
                 line = line.strip()
                 if line:
-                    sql_lines.append(line)
                     # Stop if we hit explanatory text
+                    if any(stop_word in line.lower() for stop_word in [
+                        'this query', 'explanation', 'note:', 'the above', 
+                        'step-by-step', 'reasoning:', 'here is', 'this sql'
+                    ]):
+                        break
+                    sql_lines.append(line)
                     if line.endswith(';'):
                         break
-                    # Stop if next line looks like explanation
-                    if any(stop_word in line.lower() for stop_word in ['explanation', 'this query', 'note:', 'the above']):
-                        break
+                elif sql_lines:  # Stop if we have SQL and hit empty line
+                    break
             
             if sql_lines:
-                return ' '.join(sql_lines)
+                return _clean_sql(' '.join(sql_lines))
     
     # 5. If no patterns match, clean the response and hope for the best
-    # Remove common prefixes/suffixes
-    response = re.sub(r'^(Here is|Here\'s|The|A|An)\s+', '', response, flags=re.IGNORECASE)
-    response = re.sub(r'(SQL\s+)?(query|statement)\s*:?\s*', '', response, flags=re.IGNORECASE)
+    return _clean_sql(response)
+
+
+def _contains_sql_keywords(text: str) -> bool:
+    """Check if text contains SQL keywords."""
+    sql_keywords = ["SELECT", "INSERT", "UPDATE", "DELETE", "WITH", "CREATE", "ALTER", "DROP"]
+    text_upper = text.upper()
+    return any(keyword in text_upper for keyword in sql_keywords)
+
+
+def _clean_sql(sql: str) -> str:
+    """Clean SQL query by removing common prefixes and suffixes."""
+    if not sql:
+        return ""
     
-    # Take first line/sentence that looks like SQL
-    lines = response.split('\n')
-    for line in lines:
-        line = line.strip()
-        if line and any(keyword.lower() in line.lower() for keyword in sql_keywords):
-            return line
+    # Remove common prefixes
+    sql = re.sub(r'^(Here is|Here\'s|The|A|An)\s+', '', sql, flags=re.IGNORECASE)
+    sql = re.sub(r'(SQL\s+)?(query|statement)\s*:?\s*', '', sql, flags=re.IGNORECASE)
     
-    return response.strip()
+    # Remove explanatory suffixes
+    sql = re.sub(r'\s*(This query|The query|This SQL).*$', '', sql, flags=re.IGNORECASE | re.DOTALL)
+    
+    # Clean up whitespace
+    sql = re.sub(r'\s+', ' ', sql.strip())
+    
+    # Ensure ends with semicolon
+    if sql and not sql.endswith(';'):
+        sql += ';'
+    
+    return sql
 
 
 def normalize_result(result: Any) -> str:
