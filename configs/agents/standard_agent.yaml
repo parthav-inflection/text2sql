@@ -3,7 +3,7 @@ description: "Standard Text2SQL agent with configurable modules"
 
 modules:
   mschema:
-    enabled: true
+    enabled: false
     critical: false
     priority: 10
     module_config:
