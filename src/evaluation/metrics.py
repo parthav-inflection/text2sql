@@ -65,6 +65,10 @@ def deepeval_correctness(execution_results: List[Dict[str, Any]]) -> float:
             )
             
             correctness_metric.measure(test_case)
+
+            result["deepeval_score"] = correctness_metric.score
+            result["deepeval_reason"] = correctness_metric.reason
+
             logger.info(f"  - DeepEval Correctness score: {correctness_metric.score}, successful: {correctness_metric.is_successful()}")
             if correctness_metric.reason is not None:
                 logger.info(f"  - DeepEval reason: {correctness_metric.reason}")
@@ -219,10 +223,11 @@ def normalize_result(result: Any) -> str:
     return str(result)
 
 
-def calculate_metrics(predictions: List[str], examples: List[Dict[str, Any]], dataset, metric_names: List[str]) -> Dict[str, float]:
+def calculate_metrics(predictions: List[str], examples: List[Dict[str, Any]], dataset, metric_names: List[str]) -> Tuple[Dict[str, float], List[Dict[str, Any]]]:
     """
     Executes SQL queries and calculates specified metrics.
     Executes each query only once and reuses the results for all metrics.
+    Returns a tuple of (metrics, execution_results).
     """
     
     execution_results = []
@@ -263,4 +268,4 @@ def calculate_metrics(predictions: List[str], examples: List[Dict[str, Any]], da
             logger.warning(f"Unknown metric: {metric_name}")
             metrics[metric_name] = 0.0
             
-    return metrics 
+    return metrics, execution_results 

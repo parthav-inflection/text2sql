@@ -138,8 +138,8 @@ class Evaluator:
                 # Generate predictions using agent
                 predictions = self._generate_predictions_with_agent(agent, examples)
                 
-                # Calculate metrics
-                metrics = calculate_metrics(
+                # Calculate metrics and get detailed execution results
+                metrics, execution_results = calculate_metrics(
                     predictions, 
                     examples, 
                     self.dataset,
@@ -159,7 +159,12 @@ class Evaluator:
                 
                 if self.config["output"]["save_predictions"]:
                     agent_results["predictions"] = predictions
-                    agent_results["examples"] = examples
+                
+                if self.config["output"].get("save_detailed_logs", False):
+                    # Clean up examples in execution_results to avoid duplication
+                    for res in execution_results:
+                        res.pop("example", None)
+                    agent_results["detailed_results"] = execution_results
                 
                 all_results[agent.name] = agent_results
                 

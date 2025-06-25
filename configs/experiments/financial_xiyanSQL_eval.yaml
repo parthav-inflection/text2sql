@@ -1,19 +1,19 @@
-experiment_name: "financial_xiyanSQL_eval"
+experiment_name: financial_xiyanSQL_eval
 
 dataset:
-  name: "financial"
-  subset_size: null  # Use full dataset
-  data_dir: "./data/financial"
+  name: financial
+  subset_size: null
+  data_dir: ./data/financial
 
 models:
-  - "configs/models/xiyanSQL_qwencoder_7b.yaml"
+  - configs/models/xiyanSQL_qwencoder_7b.yaml
 
 evaluation:
   metrics:
-    - "execution_accuracy"
+    - deepeval_correctness
   batch_size: 1
 
 output:
-  results_dir: "./results"
+  results_dir: ./results
   save_predictions: true
   save_detailed_logs: true 
