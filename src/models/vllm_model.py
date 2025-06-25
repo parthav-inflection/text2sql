@@ -1,7 +1,7 @@
 from typing import List, Dict, Any
 import logging
 from vllm import LLM, SamplingParams
-from models.base import BaseModel
+from src.models.base import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -22,22 +22,44 @@ class VLLMModel(BaseModel):
         # vLLM configuration
         vllm_config = self.config.get("vllm_config", {})
         
-        self.llm = LLM(
-            model=self.model_path,
-            tensor_parallel_size=vllm_config.get("tensor_parallel_size", 1),
-            gpu_memory_utilization=vllm_config.get("gpu_memory_utilization", 0.9),
-            max_model_len=vllm_config.get("max_model_len", 8192),
-            trust_remote_code=vllm_config.get("trust_remote_code", True)
-        )
+        # Build vLLM initialization arguments
+        llm_args = {
+            "model": self.model_path,
+            "tensor_parallel_size": vllm_config.get("tensor_parallel_size", 1),
+            "max_model_len": vllm_config.get("max_model_len", 8192),
+            "trust_remote_code": vllm_config.get("trust_remote_code", True)
+        }
+        
+        # CPU-specific configuration
+        if vllm_config.get("device") == "cpu":
+            logger.info("Configuring for CPU inference")
+            llm_args.update({
+                "device": "cpu",
+                "enforce_eager": vllm_config.get("enforce_eager", True),
+                "disable_log_stats": vllm_config.get("disable_log_stats", True),
+                "block_size": vllm_config.get("block_size", 16),
+                "swap_space": vllm_config.get("swap_space", 4)
+            })
+        else:
+            # GPU configuration
+            llm_args["gpu_memory_utilization"] = vllm_config.get("gpu_memory_utilization", 0.9)
+        
+        self.llm = LLM(**llm_args)
         
         # Sampling parameters
         gen_config = self.config.get("generation_config", {})
-        self.sampling_params = SamplingParams(
-            temperature=gen_config.get("temperature", 0.0),
-            max_tokens=gen_config.get("max_tokens", 512),
-            top_p=gen_config.get("top_p", 1.0),
-            top_k=gen_config.get("top_k", -1)
-        )
+        sampling_args = {
+            "temperature": gen_config.get("temperature", 0.0),
+            "max_tokens": gen_config.get("max_tokens", 512),
+            "top_p": gen_config.get("top_p", 1.0),
+            "top_k": gen_config.get("top_k", -1)
+        }
+        
+        # Add stop sequences if provided
+        if "stop" in gen_config:
+            sampling_args["stop"] = gen_config["stop"]
+        
+        self.sampling_params = SamplingParams(**sampling_args)
         
         logger.info(f"Model {self.name} loaded successfully")
     

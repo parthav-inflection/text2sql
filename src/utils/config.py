@@ -27,4 +27,9 @@ def create_output_dir(results_dir: str, experiment_name: str) -> str:
     """Create output directory for experiment results."""
     output_dir = os.path.join(results_dir, experiment_name)
     os.makedirs(output_dir, exist_ok=True)
-    return output_dir 
+    return output_dir
+
+
+def load_config(config_path: str) -> Dict[str, Any]:
+    """Load any configuration file (alias for load_yaml)."""
+    return load_yaml(config_path) 

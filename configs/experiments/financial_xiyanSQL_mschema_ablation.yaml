@@ -1,0 +1,37 @@
+experiment_name: "financial_xiyanSQL_mschema_ablation"
+description: "Ablation study comparing XiYanSQL performance on financial dataset with and without M-Schema module"
+
+# Dataset configuration
+dataset:
+  name: "financial"
+  data_dir: "./data/financial"
+  subset_size: null  # Use full dataset for comprehensive comparison
+
+# Models to test
+models:
+  - "configs/models/xiyanSQL_qwencoder_7b.yaml"
+
+# Agent configurations for ablation
+agents:
+  - name: "baseline_no_agent"
+    config: null  # Use the original model without any agent processing
+    
+  - name: "without_mschema"
+    config: "configs/agents/agent_without_mschema.yaml"
+    
+  - name: "with_mschema"
+    config: "configs/agents/agent_with_mschema.yaml"
+
+# Evaluation settings
+evaluation:
+  metrics: ["execution_accuracy", "exact_match", "valid_sql"]
+  batch_size: 4  # Adjust based on GPU memory
+  timeout_seconds: 60  # Increased for complex financial queries
+
+# Output settings
+output:
+  results_dir: "./results"
+  save_predictions: true
+  save_intermediate_outputs: true  # Save module outputs for analysis
+  save_detailed_logs: true
+  create_comparison_report: true 

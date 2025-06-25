@@ -1,0 +1,12 @@
+name: "AgentWithoutMSchema"
+description: "Text2SQL agent with M-Schema module disabled"
+
+modules:
+  mschema:
+    enabled: false
+    critical: false
+    priority: 10
+    module_config:
+      include_samples: true
+      include_descriptions: true
+      max_sample_values: 3 

@@ -1,0 +1,12 @@
+name: "AgentWithMSchema"
+description: "Text2SQL agent with M-Schema module enabled"
+
+modules:
+  mschema:
+    enabled: true
+    critical: false
+    priority: 10
+    module_config:
+      include_samples: true
+      include_descriptions: true
+      max_sample_values: 3 

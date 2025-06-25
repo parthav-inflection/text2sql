@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "text2sql"
+version = "0.1.0"
+description = "Text to SQL generation with modular agent architecture"
+authors = [{name = "Your Name", email = "your.email@example.com"}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "sqlparse>=0.4.4",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "pyyaml>=6.0",
+    "tqdm>=4.65.0",
+    "requests>=2.31.0"
+]
+
+[project.optional-dependencies]
+# Core ML dependencies (for actual inference)
+ml = [
+    "torch>=2.0.0",
+    "transformers>=4.35.0",
+    "vllm>=0.6.0",
+    "datasets>=2.14.0",
+    "huggingface-hub>=0.17.0"
+]
+# Development dependencies
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0"
+]
+# All dependencies for full functionality
+full = [
+    "torch>=2.0.0",
+    "transformers>=4.35.0",
+    "vllm>=0.6.0",
+    "datasets>=2.14.0",
+    "huggingface-hub>=0.17.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"] 

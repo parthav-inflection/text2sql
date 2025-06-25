@@ -1,17 +1,16 @@
-experiment_name: "test_minidev"
+experiment_name: "test_cpu_qwen"
 dataset:
   name: "bird"
-  subset_size: 5  # Test with 5 examples from Mini-Dev
+  subset_size: 10  # Only test on 10 examples for quick validation
   data_dir: "./data/bird"
   
 models:
-  - "configs/models/qwen3.yaml"
-  - "configs/models/omnisql.yaml"
+  - "configs/models/qwen3_0.6b_cpu.yaml"
 
 evaluation:
   metrics:
     - "execution_accuracy"
-  batch_size: 1
+  batch_size: 1  # Process one example at a time for CPU
   
 output:
   results_dir: "./results"

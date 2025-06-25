@@ -1,0 +1,15 @@
+name: "XiYanSQL-QwenCoder-7B-2504"
+model_path: "XGenerationLab/XiYanSQL-QwenCoder-7B-2504"
+model_type: "vllm"
+generation_config:
+  temperature: 0.0
+  max_tokens: 512
+  top_p: 1.0
+  top_k: -1
+  stop_token_ids: []
+vllm_config:
+  tensor_parallel_size: 1
+  gpu_memory_utilization: 0.9
+  max_model_len: 8192
+  trust_remote_code: true
+  dtype: "bfloat16"  # Use bfloat16 for efficiency on modern GPUs 
