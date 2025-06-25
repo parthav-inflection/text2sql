@@ -79,4 +79,7 @@ temp/
 *.temp
 .deepeval/
 
+# Local files
+.deepeval
+
 # ... rest of the file remains unchanged ... 

@@ -33,6 +33,17 @@ echo "Date: $(date)"
 echo "Working directory: $(pwd)"
 echo "----------------"
 
+# --- Load API Keys and Secrets ---
+# Load secrets from a file in your home directory for security.
+# IMPORTANT: This file should only exist on the cluster's filesystem.
+if [ -f "$HOME/.deepeval" ]; then
+    echo "Loading secrets from $HOME/.deepeval"
+    source "$HOME/.deepeval"
+else
+    echo "Warning: Secret file not found at $HOME/.deepeval. The script may fail if it requires API keys."
+fi
+# ---------------------------------
+
 # --- Environment Setup ---
 # IMPORTANT: You MUST uncomment and modify this section for your cluster.
 #
