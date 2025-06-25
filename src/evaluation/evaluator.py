@@ -25,8 +25,8 @@ class Evaluator:
         # Initialize dataset
         self.dataset = self._create_dataset(experiment_config["dataset"])
         
-        # Load agents (new architecture)
-        self.agents = self._load_agents(experiment_config)
+        # Prepare agent definitions without loading them
+        self.agent_definitions = self._prepare_agent_definitions(experiment_config)
         
     def _create_dataset(self, dataset_config: Dict[str, Any]) -> Any:
         """Create dataset instance based on configuration."""
@@ -39,106 +39,78 @@ class Evaluator:
         else:
             raise ValueError(f"Unsupported dataset: {dataset_name}")
     
-    def _load_agents(self, experiment_config: Dict[str, Any]) -> List[Any]:
-        """Load agent instances from configuration."""
-        agents = []
-        
-        # Check if this is an ablation study with multiple agent configs
-        if "agents" in experiment_config:
-            # New ablation format: multiple agents with different configurations
-            model_configs = experiment_config.get("models", [])
-            if not model_configs:
-                raise ValueError("No model configurations specified in experiment config")
-            
-            agent_configs = experiment_config["agents"]
-            
+    def _prepare_agent_definitions(self, experiment_config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Prepare a list of agent definitions without loading models."""
+        definitions = []
+        model_configs = experiment_config.get("models", [])
+        if not model_configs:
+            raise ValueError("No model configurations specified in experiment config")
+
+        if "agents" in experiment_config: # Ablation study format
             for model_config_path in model_configs:
-                for agent_def in agent_configs:
-                    agent_name = agent_def["name"]
-                    agent_config_path = agent_def.get("config")
-                    
-                    try:
-                        if agent_config_path is None:
-                            # Baseline: use model directly without agent
-                            model = ModelFactory.create_model(model_config_path)
-                            
-                            # Create a simple wrapper that acts like an agent
-                            class BaselineAgent:
-                                def __init__(self, name, model):
-                                    self.name = name
-                                    self.model = model
-                                
-                                def generate_sql(self, question: str, schema: str) -> str:
-                                    prompt = self.model.format_prompt(question, schema)
-                                    response = self.model.generate([prompt])[0]
-                                    return response
-                                
-                                def cleanup(self):
-                                    if hasattr(self.model, 'cleanup'):
-                                        self.model.cleanup()
-                            
-                            agent = BaselineAgent(agent_name, model)
-                        else:
-                            # Create agent using factory
-                            agent = AgentFactory.create_agent(
-                                agent_config_path=agent_config_path,
-                                model_config_path=model_config_path
-                            )
-                            # Override the name to include the agent configuration
-                            agent.name = agent_name
-                        
-                        agents.append(agent)
-                        logger.info(f"Created agent '{agent_name}' with model: {model_config_path}")
-                        
-                    except Exception as e:
-                        logger.error(f"Failed to create agent '{agent_name}' with model {model_config_path}: {e}")
-                        raise
-        else:
-            # Legacy format: single agent_config with multiple models
+                for agent_def in experiment_config["agents"]:
+                    definitions.append({
+                        "name": agent_def["name"],
+                        "agent_config_path": agent_def.get("config"),
+                        "model_config_path": model_config_path
+                    })
+        else: # Standard format
             agent_config_path = experiment_config.get("agent_config", "configs/agents/standard_agent.yaml")
-            model_configs = experiment_config.get("models", [])
-            
-            if not model_configs:
-                raise ValueError("No model configurations specified in experiment config")
-            
             for model_config_path in model_configs:
-                try:
-                    # Create agent using factory
-                    agent = AgentFactory.create_agent(
-                        agent_config_path=agent_config_path,
-                        model_config_path=model_config_path
-                    )
-                    agents.append(agent)
-                    logger.info(f"Created agent with model: {model_config_path}")
-                except Exception as e:
-                    logger.error(f"Failed to create agent with model {model_config_path}: {e}")
-                    raise
+                model_config_data = load_model_config(model_config_path)
+                definitions.append({
+                    "name": model_config_data.get("name", "agent"),
+                    "agent_config_path": agent_config_path,
+                    "model_config_path": model_config_path
+                })
         
-        logger.info(f"Loaded {len(agents)} agents")
-        return agents
-    
+        logger.info(f"Prepared {len(definitions)} agent definitions for sequential evaluation.")
+        return definitions
+
     def run_evaluation(self, output_dir: str) -> Dict[str, Any]:
-        """Run evaluation on all agents."""
+        """Run evaluation on all agents, loading them one by one."""
         self.output_dir = output_dir
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
-        # Setup dataset
         logger.info("Setting up dataset...")
         self.dataset.download_and_setup()
         examples = self.dataset.load_data()
         
-        logger.info(f"Starting evaluation on {len(examples)} examples")
+        logger.info(f"Starting evaluation on {len(examples)} examples across {len(self.agent_definitions)} agents.")
         
         all_results = {}
         
-        for i, agent in enumerate(self.agents, 1):
-            logger.info(f"Evaluating agent {i}/{len(self.agents)}: {agent.name}")
+        for i, agent_def in enumerate(self.agent_definitions, 1):
+            agent = None  # Ensure agent is None at the start of each loop
+            agent_name = agent_def["name"]
+            logger.info(f"--- Evaluating Agent {i}/{len(self.agent_definitions)}: {agent_name} ---")
             
             try:
-                # Generate predictions using agent
+                # LAZILY CREATE AGENT (and load model)
+                logger.info(f"Loading agent '{agent_name}' with model '{agent_def['model_config_path']}'...")
+                if agent_def["agent_config_path"] is None: # Baseline agent
+                    model = ModelFactory.create_model(agent_def["model_config_path"])
+                    class BaselineAgent:
+                        def __init__(self, name, model):
+                            self.name = name
+                            self.model = model
+                        def generate_sql(self, question: str, schema: str) -> str:
+                            prompt = self.model.format_prompt(question, schema)
+                            return self.model.generate([prompt])[0]
+                        def cleanup(self):
+                            if hasattr(self.model, 'cleanup'): self.model.cleanup()
+                    agent = BaselineAgent(agent_name, model)
+                else:
+                    agent = AgentFactory.create_agent(
+                        agent_config_path=agent_def["agent_config_path"],
+                        model_config_path=agent_def["model_config_path"]
+                    )
+                    agent.name = agent_name
+                
+                # Generate predictions
                 predictions = self._generate_predictions_with_agent(agent, examples)
                 
-                # Calculate metrics and get detailed execution results
+                # Calculate metrics
                 metrics, execution_results = calculate_metrics(
                     predictions, 
                     examples, 
@@ -161,11 +133,10 @@ class Evaluator:
                     agent_results["predictions"] = predictions
                 
                 if self.config["output"].get("save_detailed_logs", False):
-                    # Clean up examples in execution_results to avoid duplication
                     for res in execution_results:
                         res.pop("example", None)
                     agent_results["detailed_results"] = execution_results
-                
+
                 all_results[agent.name] = agent_results
                 
                 # Save individual agent results
@@ -175,15 +146,18 @@ class Evaluator:
                 
             except Exception as e:
                 logger.error(f"Failed to evaluate agent {agent.name}: {e}", exc_info=True)
-                # Continue with other agents
                 continue
             
             finally:
-                # Cleanup agent to free GPU memory
-                try:
-                    agent.cleanup()
-                except:
-                    pass
+                # CLEANUP AGENT (and offload model)
+                if agent:
+                    logger.info(f"Cleaning up agent '{agent.name}' to free memory...")
+                    try:
+                        agent.cleanup()
+                        logger.info(f"Successfully cleaned up '{agent.name}'.")
+                    except Exception as e:
+                        logger.error(f"Error during cleanup for agent {agent.name}: {e}")
+                logger.info(f"--- Finished with Agent {i}/{len(self.agent_definitions)}: {agent_name} ---")
         
         if not all_results:
             raise RuntimeError("No agents were successfully evaluated")
