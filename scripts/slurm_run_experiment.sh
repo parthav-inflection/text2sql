@@ -68,9 +68,12 @@ python3 --version
 echo "Verifying key packages..."
 pip3 freeze | grep -E "torch|vllm|transformers|sqlparse"
 
-# Install/update the local text2sql package
-echo "Installing/updating local package in editable mode..."
-pip install -e .
+# --- Set Python Path ---
+# Add the project's root directory to the PYTHONPATH to ensure modules can be found.
+# This avoids issues with editable installs on some systems.
+export PYTHONPATH=$PYTHONPATH:$(pwd)
+echo "Updated PYTHONPATH to include project root."
+# ---------------------
 
 # --- Run Evaluation ---
 echo "Starting evaluation script: run_eval.py"

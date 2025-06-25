@@ -1,0 +1,16 @@
+experiment_name: financial_eval_qwen3
+dataset:
+  name: financial
+  subset_size: null
+  data_dir: ./data/financial
+models:
+  - configs/models/qwen3.yaml
+evaluation:
+  metrics:
+    - execution_accuracy
+    - deepeval_correctness
+  batch_size: 1
+output:
+  results_dir: ./results
+  save_predictions: true
+  save_detailed_logs: true 

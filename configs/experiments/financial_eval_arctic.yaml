@@ -1,18 +1,15 @@
-experiment_name: financial_xiyanSQL_eval
-
+experiment_name: financial_eval_arctic
 dataset:
   name: financial
   subset_size: null
   data_dir: ./data/financial
-
 models:
-  - configs/models/xiyanSQL_qwencoder_7b.yaml
-
+  - configs/models/arctic_text2sql.yaml
 evaluation:
   metrics:
+    - execution_accuracy
     - deepeval_correctness
   batch_size: 1
-
 output:
   results_dir: ./results
   save_predictions: true
