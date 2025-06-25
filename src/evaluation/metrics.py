@@ -2,40 +2,98 @@ import logging
 from typing import List, Dict, Any, Tuple
 import sqlparse
 import re
+from deepeval.metrics import GEval
+from deepeval.test_case import LLMTestCase, LLMTestCaseParams
 
 logger = logging.getLogger(__name__)
 
+# Define the custom GEval metric for SQL correctness
+correctness_metric = GEval(
+    name="Correctness",
+    threshold=0.8,
+    criteria="""Evaluate the factual correctness of the 'actual output' against the 'context', which contains the ground truth data from the database. The 'input' is the original question.
 
-def execution_accuracy(predictions: List[str], examples: List[Dict[str, Any]], dataset) -> float:
-    """Calculate execution accuracy by comparing query results."""
-    correct = 0
-    total = len(predictions)
-    
-    for pred_sql, example in zip(predictions, examples):
+1.  **Data Equivalence**:
+    *   Does the 'actual output' contain the same data as the 'context'?
+    *   Are all numerical values, dates, and specific data points from the 'context' present and accurate in the 'actual output'?
+    *   Are there any missing or extra data points in the 'actual output' compared to the 'context'?
+
+2.  **Factual Consistency**:
+    *   Does the 'actual output' introduce any information that contradicts the 'context'?
+    *   Are relationships between data points preserved correctly?
+
+Scoring Guidelines:
+- Score 1.0: The 'actual output' is perfectly equivalent to the 'context'.
+- Score 0.9: All critical information from the 'context' is present, minor formatting differences are acceptable.
+- Score 0.8: Most essential information from the 'context' is present and correct.
+- Score < 0.8: The 'actual output' is missing critical information or contains factual errors when compared to the 'context'.
+
+Note: The evaluation should focus purely on data equivalence and factual correctness.""",
+    evaluation_params=[
+        LLMTestCaseParams.INPUT,
+        LLMTestCaseParams.ACTUAL_OUTPUT,
+        LLMTestCaseParams.CONTEXT,
+    ],
+)
+
+
+def deepeval_correctness(execution_results: List[Dict[str, Any]]) -> float:
+    """Calculate SQL correctness using a custom GEval metric on execution results."""
+    successful_cases = 0
+    total_cases = len(execution_results)
+    if total_cases == 0:
+        return 0.0
+
+    for result in execution_results:
         try:
-            # Clean up the predicted SQL
-            pred_sql = extract_sql_from_response(pred_sql)
+            example = result["example"]
+            pred_result = result.get("pred_result")
+            gt_result = result.get("gt_result")
+
+            # Convert gt_result to list of strings for context
+            if gt_result is None:
+                context_list = []
+            elif isinstance(gt_result, (list, tuple)):
+                context_list = [str(row) for row in gt_result]
+            else:
+                context_list = [str(gt_result)]
+
+            test_case = LLMTestCase(
+                input=example["question"],
+                actual_output=normalize_result(pred_result),
+                context=context_list
+            )
             
-            # Execute predicted SQL
-            pred_success, pred_result = dataset.execute_sql(pred_sql, example)
-            
-            # Execute ground truth SQL
-            gt_sql = example.get("SQL", example.get("query", ""))
-            gt_success, gt_result = dataset.execute_sql(gt_sql, example)
-            
-            # Compare results
-            if pred_success and gt_success:
-                if normalize_result(pred_result) == normalize_result(gt_result):
-                    correct += 1
-            elif not pred_success and not gt_success:
-                # Both failed - could be considered correct in some cases
-                pass
-                
+            correctness_metric.measure(test_case)
+            logger.info(f"  - DeepEval Correctness score: {correctness_metric.score}, successful: {correctness_metric.is_successful()}")
+            if correctness_metric.reason is not None:
+                logger.info(f"  - DeepEval reason: {correctness_metric.reason}")
+
+            if correctness_metric.is_successful():
+                successful_cases += 1
         except Exception as e:
-            logger.warning(f"Error evaluating example: {e}")
+            logger.warning(f"Error evaluating example with DeepEval: {e}")
             continue
     
-    return correct / total if total > 0 else 0.0
+    return successful_cases / total_cases if total_cases > 0 else 0.0
+
+
+def execution_accuracy(execution_results: List[Dict[str, Any]]) -> float:
+    """Calculate execution accuracy by comparing pre-computed query results."""
+    correct = 0
+    total = len(execution_results)
+    if total == 0:
+        return 0.0
+    
+    for result in execution_results:
+        if result.get("pred_success") and result.get("gt_success"):
+            if normalize_result(result["pred_result"]) == normalize_result(result["gt_result"]):
+                correct += 1
+        elif not result.get("pred_success") and not result.get("gt_success"):
+            # Both failed - could be considered correct in some cases
+            pass
+                
+    return correct / total
 
 
 def extract_sql_from_response(response: str) -> str:
@@ -162,14 +220,47 @@ def normalize_result(result: Any) -> str:
 
 
 def calculate_metrics(predictions: List[str], examples: List[Dict[str, Any]], dataset, metric_names: List[str]) -> Dict[str, float]:
-    """Calculate specified metrics for predictions."""
-    metrics = {}
+    """
+    Executes SQL queries and calculates specified metrics.
+    Executes each query only once and reuses the results for all metrics.
+    """
     
+    execution_results = []
+    for pred_sql_raw, example in zip(predictions, examples):
+        result_payload = {"example": example}
+        
+        # Execute predicted SQL
+        try:
+            pred_sql = extract_sql_from_response(pred_sql_raw)
+            pred_success, pred_result = dataset.execute_sql(pred_sql, example)
+            result_payload["pred_success"] = pred_success
+            result_payload["pred_result"] = pred_result
+        except Exception as e:
+            logger.warning(f"Error executing predicted SQL for example: {e}")
+            result_payload["pred_success"] = False
+            result_payload["pred_result"] = None
+
+        # Execute ground truth SQL
+        try:
+            gt_sql = example.get("SQL", example.get("query", ""))
+            gt_success, gt_result = dataset.execute_sql(gt_sql, example)
+            result_payload["gt_success"] = gt_success
+            result_payload["gt_result"] = gt_result
+        except Exception as e:
+            logger.warning(f"Error executing ground truth SQL for example: {e}")
+            result_payload["gt_success"] = False
+            result_payload["gt_result"] = None
+
+        execution_results.append(result_payload)
+        
+    metrics = {}
     for metric_name in metric_names:
         if metric_name == "execution_accuracy":
-            metrics[metric_name] = execution_accuracy(predictions, examples, dataset)
+            metrics[metric_name] = execution_accuracy(execution_results)
+        elif metric_name == "deepeval_correctness":
+            metrics[metric_name] = deepeval_correctness(execution_results)
         else:
             logger.warning(f"Unknown metric: {metric_name}")
             metrics[metric_name] = 0.0
-    
+            
     return metrics 

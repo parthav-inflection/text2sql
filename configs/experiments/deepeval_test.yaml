@@ -1,13 +1,13 @@
-experiment_name: financial_eval
+experiment_name: deepeval_test
 dataset:
   name: financial
-  subset_size: 10
+  subset_size: 5
   data_dir: ./data/financial
 models:
 - configs/models/qwen3_0.6b_cpu.yaml
 evaluation:
   metrics:
-  - execution_accuracy
+  - deepeval_correctness
   batch_size: 1
 output:
   results_dir: ./results

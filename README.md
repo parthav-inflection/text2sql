@@ -150,7 +150,7 @@ class YourModel(BaseModel):
         pass
 ```
 
-3. **Register in factory** (`src/models/base.py` or extend `ModelFactory`):
+3. **Register in factory** (`src/agents/factory.py`):
 
 ```python
 # In ModelFactory.create_model()

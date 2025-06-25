@@ -76,4 +76,7 @@ slurm-*.err
 tmp/
 temp/
 *.tmp
-*.temp 
+*.temp
+.deepeval/
+
+# ... rest of the file remains unchanged ... 
