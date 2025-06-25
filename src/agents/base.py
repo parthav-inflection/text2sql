@@ -32,6 +32,7 @@ class AgentContext:
         self.sql_candidates = []
         self.execution_results = []
         self.final_sql = ""
+        self.prompt = ""
         
         # Module outputs
         self.module_outputs = {}
@@ -92,7 +93,7 @@ class BaseAgent(ABC):
             context.final_sql = self._select_best_candidate(context)
         else:
             # Generate directly using the model
-            context.final_sql = self._generate_sql(context)
+            context.final_sql, context.prompt = self._generate_sql(context)
         
         return context.final_sql
     
@@ -100,7 +101,8 @@ class BaseAgent(ABC):
         """Generate SQL using the base model."""
         prompt = self.model.format_prompt(context.question, context.processed_schema)
         predictions = self.model.generate([prompt])
-        return predictions[0] if predictions else ""
+        prediction = predictions[0] if predictions else ""
+        return prediction, prompt
     
     def _select_best_candidate(self, context: AgentContext) -> str:
         """Select the best SQL candidate from available options."""
@@ -121,7 +123,8 @@ class BaseAgent(ABC):
         
         # Create context and process
         context = AgentContext(question, dummy_example, dummy_dataset)
-        return self.process(context)
+        result_sql = self.process(context)
+        return result_sql, context.prompt
     
     def cleanup(self):
         """Clean up agent resources."""

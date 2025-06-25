@@ -129,14 +129,11 @@ class Evaluator:
                     "modules": self._get_agent_module_info(agent)
                 }
                 
+                # Save predictions and detailed results in an interleaved format
                 if self.config["output"]["save_predictions"]:
-                    agent_results["predictions"] = predictions
+                    # The `execution_results` now contains the example, prediction, and execution outcome
+                    agent_results["results"] = execution_results
                 
-                if self.config["output"].get("save_detailed_logs", False):
-                    for res in execution_results:
-                        res.pop("example", None)
-                    agent_results["detailed_results"] = execution_results
-
                 all_results[agent.name] = agent_results
                 
                 # Save individual agent results

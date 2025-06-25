@@ -232,7 +232,10 @@ def calculate_metrics(predictions: List[str], examples: List[Dict[str, Any]], da
     
     execution_results = []
     for pred_sql_raw, example in zip(predictions, examples):
-        result_payload = {"example": example}
+        result_payload = {
+            "example": example,
+            "prediction": pred_sql_raw
+        }
         
         # Execute predicted SQL
         try:
