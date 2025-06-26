@@ -14,7 +14,5 @@ output:
   save_predictions: true
   save_execution_results: true
 
-agents:
-  - name: "Qwen3-ToolCalling"
-    agent_config_path: "configs/agents/standard_agent.yaml"
-    model_config_path: "configs/models/qwen3_8b.yaml" 
+models:
+  - configs/models/qwen3_8b.yaml
