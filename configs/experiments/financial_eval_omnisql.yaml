@@ -14,7 +14,5 @@ output:
   save_predictions: true
   save_execution_results: true
 
-agents:
-  - name: "OmniSQL-ToolCalling"
-    agent_config_path: "configs/agents/standard_agent.yaml"
-    model_config_path: "configs/models/omnisql.yaml" 
+models:
+  - configs/models/omnisql.yaml
