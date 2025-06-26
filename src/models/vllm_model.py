@@ -1,6 +1,5 @@
 from typing import List, Dict, Any
 import logging
-from vllm import LLM, SamplingParams
 from src.models.base import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -17,6 +16,13 @@ class VLLMModel(BaseModel):
     
     def _initialize_model(self):
         """Initialize the vLLM model."""
+        # Lazy import vllm only when the model is actually initialized
+        try:
+            from vllm import LLM, SamplingParams
+        except ImportError as e:
+            logger.error(f"Failed to import vllm: {e}")
+            raise ImportError("vllm is required for VLLMModel. Please install it with: pip install vllm")
+        
         logger.info(f"Loading model: {self.model_path}")
         
         # vLLM configuration
