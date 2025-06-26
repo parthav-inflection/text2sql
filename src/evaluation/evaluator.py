@@ -166,7 +166,7 @@ class Evaluator:
         return all_results
     
     def _generate_predictions_with_agent(self, agent: Any, examples: List[Dict[str, Any]]) -> List[str]:
-        """Generate predictions using an agent."""
+        """Generate human-readable predictions using an agent."""
         predictions = []
         batch_size = self.config["evaluation"]["batch_size"]
         
@@ -178,11 +178,21 @@ class Evaluator:
             batch_predictions = []
             for example in batch_examples:
                 try:
-                    # Get database schema
-                    schema = self.dataset.get_schema(example)
+                    # Check if agent has new tool calling interface
+                    if hasattr(agent, 'generate_answer'):
+                        # New agent interface - generates human-readable answers
+                        schema = self.dataset.get_schema(example)
+                        prediction = agent.generate_answer(
+                            question=example["question"],
+                            schema=schema,
+                            dataset=self.dataset,
+                            example=example
+                        )
+                    else:
+                        # Legacy agent interface - for baseline agents
+                        schema = self.dataset.get_schema(example)
+                        prediction = agent.generate_sql(example["question"], schema)
                     
-                    # Use agent to generate SQL
-                    prediction = agent.generate_sql(example["question"], schema)
                     batch_predictions.append(prediction)
                     
                 except Exception as e:

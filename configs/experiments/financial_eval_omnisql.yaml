@@ -3,14 +3,18 @@ dataset:
   name: financial
   subset_size: null
   data_dir: ./data/financial
-models:
-  - configs/models/omnisql.yaml
+
 evaluation:
   metrics:
-    - execution_accuracy
     - deepeval_correctness
   batch_size: 1
+
 output:
   results_dir: ./results
   save_predictions: true
-  save_detailed_logs: true 
+  save_execution_results: true
+
+agents:
+  - name: "OmniSQL-ToolCalling"
+    agent_config_path: "configs/agents/standard_agent.yaml"
+    model_config_path: "configs/models/omnisql.yaml" 

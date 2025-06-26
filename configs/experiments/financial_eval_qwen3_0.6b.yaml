@@ -1,0 +1,19 @@
+experiment_name: "financial_eval_qwen3_0.6b"
+
+dataset:
+  name: "financial"
+  data_dir: "data/financial"
+  subset_size: 5
+
+evaluation:
+  metrics:
+    - "deepeval_correctness"
+  batch_size: 1  # Process one at a time for CPU inference
+
+output:
+  results_dir: "results"
+  save_predictions: true
+  save_execution_results: true
+
+models:
+  - configs/models/qwen3_0.6b.yaml

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class StandardAgent(BaseAgent):
-    """Standard Text2SQL agent with configurable modules."""
+    """Standard Text2SQL agent with tool calling and human summarization."""
     
     def __init__(
         self, 

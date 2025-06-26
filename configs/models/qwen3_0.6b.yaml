@@ -1,12 +1,11 @@
-name: "Qwen3-0.6B-CPU"
+name: "Qwen3-0.6B"
 model_path: "Qwen/Qwen3-0.6B"  # New Qwen3-0.6B model
 model_type: "vllm"
 generation_config:
   temperature: 0.0
-  max_tokens: 256
-  top_p: 1.0
-  top_k: -1
-  stop: ["\n", ";"]  # Stop at newline or semicolon to get clean SQL
+  max_tokens: 32768
+  top_p: 0.95
+  top_k: 20
 vllm_config:
   tensor_parallel_size: 1
   max_model_len: 4096  # Smaller context for CPU efficiency
