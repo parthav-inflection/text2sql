@@ -13,6 +13,7 @@ from src.models.base import BaseModel
 from src.models.vllm_model import VLLMModel
 from src.modules.base import BaseModule
 from src.modules.schema.mschema import MSchemaModule
+from src.modules.refinement.sqlfluff_validator import SQLFluffValidatorModule
 from src.utils.config import load_config
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ class ModuleFactory:
         # Registry of available modules
         module_registry = {
             'mschema': MSchemaModule,
+            'sqlfluff_validator': SQLFluffValidatorModule,
             # Future modules can be added here:
             # 'schema_linking': SchemaLinkingModule,
             # 'candidate_generation': CandidateGenerationModule,

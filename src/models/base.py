@@ -105,21 +105,59 @@ User Question: {question}
 
 Previous attempts:"""
 
-        # Add conversation history
+        # Add conversation history with enhanced error information
         for i, entry in enumerate(conversation_history):
             if entry['type'] == 'tool_call':
+                tool_result = entry['result']
                 prompt += f"""
 
 Attempt {i+1}:
-SQL: {entry['sql']}
-Result: {entry['result']['result']}"""
-                if not entry['result']['success']:
+SQL: {entry['sql']}"""
+                
+                prompt += f"""
+Result: {tool_result['result']}"""
+                
+                if not tool_result['success']:
+                    error_msg = tool_result.get('error', 'Unknown error')
                     prompt += f"""
-Error: {entry['result'].get('error', 'Unknown error')}"""
+Error: {error_msg}"""
+                    
+                    # Only show parsing information if there were parsing errors that weren't auto-fixed
+                    parsing_info = tool_result.get('parsing_info')
+                    if parsing_info and parsing_info.get('errors'):
+                        # Show the most informative parsing errors
+                        parsing_errors = parsing_info.get('errors', [])
+                        if parsing_errors:
+                            prompt += f"""
+SQL Parsing Issues: {'; '.join(parsing_errors)}"""
+                    
+                    # Provide specific guidance based on error type
+                    if parsing_info and parsing_info.get('errors'):
+                        prompt += """
+
+This was a SQL parsing/syntax error. Please check:
+- Correct SQL syntax and keywords
+- Proper table and column names from the schema
+- Matching parentheses and quotes
+- Valid SQL operators and functions"""
+                    elif 'execution' in error_msg.lower() or 'table' in error_msg.lower() or 'column' in error_msg.lower():
+                        prompt += """
+
+This was a SQL execution error. Please check:
+- Table names match exactly those in the schema
+- Column names are spelled correctly
+- Data types are compatible with operations
+- JOIN conditions reference valid columns"""
 
         prompt += """
 
-Please write a corrected SQL query. Use the same JSON format:
+Please analyze the errors above and write a corrected SQL query. Pay special attention to:
+1. SQL syntax and parsing errors
+2. Table and column name accuracy  
+3. Proper data types and operations
+4. Valid SQL structure
+
+Use the same JSON format:
 {
   "tool_calls": [{
     "type": "function",

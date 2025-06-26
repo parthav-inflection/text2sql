@@ -9,22 +9,150 @@ from src.datasets.base import BaseDataset
 logger = logging.getLogger(__name__)
 
 
+class SQLParsingTool:
+    """Tool for validating and parsing SQL queries using SQLFluff."""
+    
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        self.config = config or {}
+        self.enabled = self.config.get('enable_sqlfluff_validation', True)
+        self.dialect = self.config.get('sqlfluff_dialect', 'sqlite')
+        self.fix_sql = self.config.get('sqlfluff_auto_fix', True)
+        
+        if self.enabled:
+            try:
+                import sqlfluff
+                self.sqlfluff = sqlfluff
+                logger.info(f"SQLFluff validation enabled with dialect: {self.dialect}")
+            except ImportError:
+                logger.warning("SQLFluff not available, disabling SQL parsing validation")
+                self.enabled = False
+    
+    def validate_and_fix_sql(self, sql_query: str) -> Dict[str, Any]:
+        """
+        Validate SQL query using SQLFluff and optionally fix it.
+        
+        Returns:
+            Dict with keys:
+            - 'valid': bool indicating if SQL is valid
+            - 'original_sql': str original SQL query
+            - 'fixed_sql': str fixed SQL query (if auto-fix enabled)
+            - 'errors': list of error descriptions
+            - 'violations': list of raw SQLFluff violations
+        """
+        if not self.enabled:
+            return {
+                'valid': True,
+                'original_sql': sql_query,
+                'fixed_sql': sql_query,
+                'errors': [],
+                'violations': []
+            }
+        
+        try:
+            # Lint the SQL to find violations
+            violations = self.sqlfluff.lint(sql_query, dialect=self.dialect)
+            
+            # Check if there are any parsing or syntax errors
+            critical_violations = [
+                v for v in violations 
+                if v.get('code', '').startswith('PRS') or  # Parse errors
+                   v.get('code', '').startswith('TMP') or  # Template errors
+                   'syntax error' in v.get('description', '').lower()
+            ]
+            
+            is_valid = len(critical_violations) == 0
+            error_messages = []
+            
+            for violation in critical_violations:
+                error_msg = f"Line {violation.get('line_no', '?')}: {violation.get('description', 'Unknown error')}"
+                error_messages.append(error_msg)
+            
+            # Try to fix the SQL if enabled and there are violations
+            fixed_sql = sql_query
+            if self.fix_sql and violations:
+                try:
+                    fixed_sql = self.sqlfluff.fix(sql_query, dialect=self.dialect)
+                    # Remove any trailing newlines
+                    fixed_sql = fixed_sql.strip()
+                    
+                    # If fix didn't change anything, keep original
+                    if fixed_sql == sql_query:
+                        fixed_sql = sql_query
+                    else:
+                        logger.info(f"SQLFluff auto-fixed SQL query")
+                        logger.debug(f"Original: {sql_query}")
+                        logger.debug(f"Fixed: {fixed_sql}")
+                        
+                except Exception as fix_error:
+                    logger.warning(f"SQLFluff auto-fix failed: {fix_error}")
+                    fixed_sql = sql_query
+            
+            return {
+                'valid': is_valid,
+                'original_sql': sql_query,
+                'fixed_sql': fixed_sql,
+                'errors': error_messages,
+                'violations': violations
+            }
+            
+        except Exception as e:
+            logger.error(f"SQLFluff validation failed: {e}")
+            # Fall back to assuming valid if SQLFluff fails
+            return {
+                'valid': True,
+                'original_sql': sql_query,
+                'fixed_sql': sql_query,
+                'errors': [f"SQLFluff validation error: {str(e)}"],
+                'violations': []
+            }
+
+
 class SQLExecutionTool:
     """Tool for executing SQL queries and returning formatted results."""
     
-    def __init__(self, dataset: BaseDataset, example: Dict[str, Any]):
+    def __init__(self, dataset: BaseDataset, example: Dict[str, Any], config: Optional[Dict[str, Any]] = None):
         self.dataset = dataset
         self.example = example
+        self.config = config or {}
+        
+        # Initialize SQL parsing tool (fallback if module not available)
+        self.sql_parser = SQLParsingTool(config)
     
-    def execute(self, sql_query: str) -> Dict[str, Any]:
+    def execute(self, sql_query: str, context: Optional['AgentContext'] = None) -> Dict[str, Any]:
         """
         Execute SQL query and return formatted results.
+        First validates the SQL with SQLFluff if enabled (via module or fallback).
         
         Returns:
-            Dict with 'success', 'result', and optional 'error' keys
+            Dict with 'success', 'result', and optional 'error', 'parsing_info' keys
         """
+        # Check if SQLFluff validation module is available in context
+        validator_fn = None
+        if context:
+            validator_fn = context.get_module_output('sqlfluff_validator_fn')
+        
+        # Use module validator if available, otherwise use fallback
+        if validator_fn:
+            parsing_result = validator_fn(sql_query)
+        else:
+            parsing_result = self.sql_parser.validate_and_fix_sql(sql_query)
+        
+        # Use the fixed SQL for execution if auto-fix is enabled
+        sql_to_execute = parsing_result['fixed_sql']
+        
+        # If SQL has critical parsing errors, return early with parsing errors
+        if not parsing_result['valid']:
+            parsing_errors = "\n".join(parsing_result['errors'])
+            return {
+                "success": False,
+                "error": f"SQL parsing errors:\n{parsing_errors}",
+                "result": f"SQL parsing failed:\n{parsing_errors}",
+                "parsing_info": parsing_result,
+                "sql_executed": sql_to_execute
+            }
+        
         try:
-            success, result = self.dataset.execute_sql(sql_query, self.example)
+            success, result = self.dataset.execute_sql(sql_to_execute, self.example)
             
             if success:
                 # Format results for model consumption
@@ -42,13 +170,17 @@ class SQLExecutionTool:
                 return {
                     "success": True,
                     "result": formatted_result,
-                    "raw_result": result
+                    "raw_result": result,
+                    "parsing_info": parsing_result,
+                    "sql_executed": sql_to_execute
                 }
             else:
                 return {
                     "success": False,
                     "error": str(result),
-                    "result": f"SQL execution failed: {result}"
+                    "result": f"SQL execution failed: {result}",
+                    "parsing_info": parsing_result,
+                    "sql_executed": sql_to_execute
                 }
                 
         except Exception as e:
@@ -57,7 +189,9 @@ class SQLExecutionTool:
             return {
                 "success": False,
                 "error": error_msg,
-                "result": f"SQL execution error: {error_msg}"
+                "result": f"SQL execution error: {error_msg}",
+                "parsing_info": parsing_result,
+                "sql_executed": sql_to_execute
             }
     
     def _format_query_results(self, results: List[Any]) -> str:
@@ -102,10 +236,11 @@ class ModulePipeline(Protocol):
 class AgentContext:
     """Context object that flows through the agent pipeline."""
     
-    def __init__(self, question: str, example: Dict[str, Any], dataset: BaseDataset):
+    def __init__(self, question: str, example: Dict[str, Any], dataset: BaseDataset, config: Optional[Dict[str, Any]] = None):
         self.question = question
         self.example = example
         self.dataset = dataset
+        self.config = config or {}
         
         # Pipeline state
         self.original_schema = ""
@@ -115,7 +250,7 @@ class AgentContext:
         self.metadata = {}
         
         # Tool calling state
-        self.sql_tool = SQLExecutionTool(dataset, example)
+        self.sql_tool = SQLExecutionTool(dataset, example, config)
         self.tool_calls = []
         self.tool_results = []
         
@@ -159,7 +294,6 @@ class BaseAgent(ABC):
         self.pipeline = pipeline
         self.config = config or {}
         self.max_iterations = config.get('max_iterations', 5) if config else 5
-        self.retry_temperature_boost = config.get('retry_temperature_boost', 0.1) if config else 0.1
         
         logger.info(f"Initialized {self.name} with model {model.name}")
         
@@ -199,7 +333,7 @@ class BaseAgent(ABC):
             
             if tool_call:
                 # Execute the tool call
-                tool_result = context.sql_tool.execute(tool_call['sql_query'])
+                tool_result = context.sql_tool.execute(tool_call['sql_query'], context)
                 
                 # Store tool interaction
                 context.tool_calls.append(tool_call)
@@ -232,25 +366,17 @@ class BaseAgent(ABC):
     
     def _generate_model_response(self, context: AgentContext, retry_attempt: int = 0) -> str:
         """Generate model response with tool calling capability."""
-        # Calculate temperature for this attempt
-        temperature_override = None
+        # For SQL generation, we want deterministic fixes based on error feedback
+        # Temperature increases make schema/syntax errors worse, not better
         if retry_attempt > 0:
-            # Increase temperature for retries to encourage exploration
-            base_temp = getattr(self.model, 'sampling_params', None)
-            if base_temp and hasattr(base_temp, 'temperature'):
-                base_temperature = base_temp.temperature
-            else:
-                base_temperature = 0.0  # Default fallback
-            
-            temperature_override = base_temperature + (retry_attempt * self.retry_temperature_boost)
-            logger.info(f"Retry attempt {retry_attempt}: using temperature {temperature_override:.2f}")
+            logger.info(f"Retry attempt {retry_attempt}: using base temperature (no temperature boost)")
         
-        # Use the model's tool calling interface
+        # Use the model's tool calling interface with consistent temperature
         response = self.model.generate_response_with_tools(
             question=context.question,
             schema=context.processed_schema,
             conversation_history=context.conversation_history,
-            temperature_override=temperature_override
+            temperature_override=None  # Use model's default temperature consistently
         )
         return response
     
@@ -287,7 +413,7 @@ class BaseAgent(ABC):
         This is the main interface for the evaluation framework.
         """
         # Create context and process
-        context = AgentContext(question, example, dataset)
+        context = AgentContext(question, example, dataset, self.config)
         result_answer = self.process(context)
         # Store context for later retrieval of tool calls
         self._last_context = context

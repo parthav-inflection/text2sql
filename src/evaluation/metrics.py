@@ -116,9 +116,16 @@ def calculate_metrics(predictions: List[str], examples: List[Dict[str, Any]], da
     
     execution_results = []
     for pred_answer, example, tool_data in zip(predictions, examples, tool_calling_data):
+        # Extract executed SQL queries for easy access
+        executed_sqls = []
+        for tool_call in tool_data.get("tool_calls", []):
+            if "sql_query" in tool_call:
+                executed_sqls.append(tool_call["sql_query"])
+        
         result_payload = {
             "example": example,
             "pred_answer": pred_answer.strip(),
+            "executed_sqls": executed_sqls,  # Add executed SQL queries at top level
             "tool_calls": tool_data.get("tool_calls", []),
             "tool_results": tool_data.get("tool_results", []),
             "conversation_history": tool_data.get("conversation_history", [])
@@ -153,8 +160,65 @@ def calculate_metrics(predictions: List[str], examples: List[Dict[str, Any]], da
     for metric_name in metric_names:
         if metric_name == "deepeval_correctness":
             metrics[metric_name] = deepeval_correctness(execution_results)
+        elif metric_name == "sqlfluff_parsing_success":
+            metrics[metric_name] = calculate_sqlfluff_parsing_success(execution_results)
+        elif metric_name == "sqlfluff_auto_fix_rate":
+            metrics[metric_name] = calculate_sqlfluff_auto_fix_rate(execution_results)
+        elif metric_name == "execution_accuracy":
+            metrics[metric_name] = calculate_execution_accuracy(execution_results)
         else:
             logger.warning(f"Unknown metric: {metric_name}")
             metrics[metric_name] = 0.0
             
-    return metrics, execution_results 
+    return metrics, execution_results
+
+
+def calculate_execution_accuracy(execution_results: List[Dict[str, Any]]) -> float:
+    """Calculate the rate of successful SQL executions."""
+    total_attempts = 0
+    successful_executions = 0
+    
+    for result in execution_results:
+        tool_results = result.get("tool_results", [])
+        for tool_result in tool_results:
+            total_attempts += 1
+            if tool_result.get("success", False):
+                successful_executions += 1
+    
+    return successful_executions / total_attempts if total_attempts > 0 else 0.0
+
+
+def calculate_sqlfluff_parsing_success(execution_results: List[Dict[str, Any]]) -> float:
+    """Calculate the rate of SQL queries that passed SQLFluff parsing validation."""
+    total_queries = 0
+    valid_queries = 0
+    
+    for result in execution_results:
+        tool_results = result.get("tool_results", [])
+        for tool_result in tool_results:
+            parsing_info = tool_result.get("parsing_info")
+            if parsing_info:
+                total_queries += 1
+                if parsing_info.get("valid", True):
+                    valid_queries += 1
+    
+    return valid_queries / total_queries if total_queries > 0 else 1.0
+
+
+def calculate_sqlfluff_auto_fix_rate(execution_results: List[Dict[str, Any]]) -> float:
+    """Calculate the rate of SQL queries that were auto-fixed by SQLFluff."""
+    total_queries = 0
+    auto_fixed_queries = 0
+    
+    for result in execution_results:
+        tool_results = result.get("tool_results", [])
+        for tool_result in tool_results:
+            parsing_info = tool_result.get("parsing_info")
+            if parsing_info:
+                total_queries += 1
+                original_sql = parsing_info.get("original_sql", "")
+                fixed_sql = parsing_info.get("fixed_sql", "")
+                if original_sql != fixed_sql:
+                    auto_fixed_queries += 1
+    
+    return auto_fixed_queries / total_queries if total_queries > 0 else 0.0 

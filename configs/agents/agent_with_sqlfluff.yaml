@@ -1,0 +1,29 @@
+name: "StandardAgentWithSQLFluff"
+description: "Standard Text2SQL agent with SQLFluff validation module enabled"
+
+# Agent configuration
+max_iterations: 5
+
+# Disable built-in SQLFluff to use module instead
+enable_sqlfluff_validation: false  # Disable the built-in validation
+sqlfluff_dialect: "sqlite"
+sqlfluff_auto_fix: false
+
+modules:
+  sqlfluff_validator:
+    enabled: true
+    critical: false
+    priority: 5  # Execute early to validate SQL before other processing
+    module_config:
+      dialect: "sqlite"
+      auto_fix: true
+      fail_on_parse_error: true
+      
+  mschema:
+    enabled: false
+    critical: false
+    priority: 10
+    module_config:
+      include_samples: true
+      include_descriptions: true
+      max_sample_values: 3 

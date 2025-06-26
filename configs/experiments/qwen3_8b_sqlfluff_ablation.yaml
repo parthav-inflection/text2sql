@@ -1,0 +1,30 @@
+experiment_name: qwen3_8b_sqlfluff_ablation
+description: "SQLFluff ablation test of Qwen3-8B with and without SQLFluff validation"
+
+dataset:
+  name: financial
+  subset_size: 20  # Larger subset for 8B model testing
+  data_dir: ./data/financial
+
+# Test both agents in the same experiment for direct comparison
+agents:
+  - name: "StandardAgentWithSQLFluff"
+    config: "configs/agents/agent_with_sqlfluff.yaml"
+  - name: "StandardAgentWithoutSQLFluff"
+    config: "configs/agents/agent_without_sqlfluff.yaml"
+
+models:
+  - configs/models/qwen3_8b.yaml
+
+evaluation:
+  metrics:
+    - execution_accuracy
+    - sqlfluff_parsing_success
+    - sqlfluff_auto_fix_rate
+    - deepeval_correctness
+  batch_size: 1
+
+output:
+  results_dir: ./results/qwen3_8b_sqlfluff_ablation
+  save_predictions: true
+  save_execution_results: true 

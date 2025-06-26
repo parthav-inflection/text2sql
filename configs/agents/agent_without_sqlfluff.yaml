@@ -1,0 +1,29 @@
+name: "StandardAgentWithoutSQLFluff"
+description: "Standard Text2SQL agent with SQLFluff validation disabled (for ablation testing)"
+
+# Agent configuration
+max_iterations: 5
+
+# Disable all SQLFluff functionality
+enable_sqlfluff_validation: false
+sqlfluff_dialect: "sqlite"
+sqlfluff_auto_fix: false
+
+modules:
+  sqlfluff_validator:
+    enabled: false  # Disabled for ablation testing
+    critical: false
+    priority: 5
+    module_config:
+      dialect: "sqlite"
+      auto_fix: true
+      fail_on_parse_error: true
+      
+  mschema:
+    enabled: false
+    critical: false
+    priority: 10
+    module_config:
+      include_samples: true
+      include_descriptions: true
+      max_sample_values: 3 
