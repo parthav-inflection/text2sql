@@ -2,7 +2,7 @@ import os
 import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 from tqdm import tqdm
 
 from agents.factory import AgentFactory, ModelFactory
@@ -108,14 +108,15 @@ class Evaluator:
                     agent.name = agent_name
                 
                 # Generate predictions
-                predictions = self._generate_predictions_with_agent(agent, examples)
+                predictions, tool_calling_data = self._generate_predictions_with_agent(agent, examples)
                 
                 # Calculate metrics
                 metrics, execution_results = calculate_metrics(
                     predictions, 
                     examples, 
                     self.dataset,
-                    self.config["evaluation"]["metrics"]
+                    self.config["evaluation"]["metrics"],
+                    tool_calling_data
                 )
                 
                 # Store results
@@ -165,9 +166,10 @@ class Evaluator:
         logger.info("Evaluation completed")
         return all_results
     
-    def _generate_predictions_with_agent(self, agent: Any, examples: List[Dict[str, Any]]) -> List[str]:
-        """Generate human-readable predictions using an agent."""
+    def _generate_predictions_with_agent(self, agent: Any, examples: List[Dict[str, Any]]) -> Tuple[List[str], List[Dict[str, Any]]]:
+        """Generate human-readable predictions using an agent and capture tool calling data."""
         predictions = []
+        tool_calling_data = []
         batch_size = self.config["evaluation"]["batch_size"]
         
         # Process in batches
@@ -176,6 +178,7 @@ class Evaluator:
             
             # Use agent to generate predictions
             batch_predictions = []
+            batch_tool_data = []
             for example in batch_examples:
                 try:
                     # Check if agent has new tool calling interface
@@ -188,20 +191,31 @@ class Evaluator:
                             dataset=self.dataset,
                             example=example
                         )
+                        
+                        # Capture tool calling data if available
+                        if hasattr(agent, 'get_last_tool_calls'):
+                            tool_data = agent.get_last_tool_calls()
+                        else:
+                            tool_data = {"tool_calls": [], "tool_results": [], "conversation_history": []}
                     else:
                         # Legacy agent interface - for baseline agents
                         schema = self.dataset.get_schema(example)
                         prediction = agent.generate_sql(example["question"], schema)
+                        # No tool calling data for legacy agents
+                        tool_data = {"tool_calls": [], "tool_results": [], "conversation_history": []}
                     
                     batch_predictions.append(prediction)
+                    batch_tool_data.append(tool_data)
                     
                 except Exception as e:
                     logger.warning(f"Failed to generate prediction for example {i}: {e}")
                     batch_predictions.append("")  # Empty prediction on failure
+                    batch_tool_data.append({"tool_calls": [], "tool_results": [], "conversation_history": []})
             
             predictions.extend(batch_predictions)
+            tool_calling_data.extend(batch_tool_data)
         
-        return predictions
+        return predictions, tool_calling_data
     
     def _get_agent_module_info(self, agent: Any) -> Dict[str, Any]:
         """Get information about agent's modules."""

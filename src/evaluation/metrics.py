@@ -96,18 +96,32 @@ def deepeval_correctness(execution_results: List[Dict[str, Any]]) -> float:
     return successful_cases / total_cases if total_cases > 0 else 0.0
 
 
-def calculate_metrics(predictions: List[str], examples: List[Dict[str, Any]], dataset, metric_names: List[str]) -> Tuple[Dict[str, float], List[Dict[str, Any]]]:
+def calculate_metrics(predictions: List[str], examples: List[Dict[str, Any]], dataset, metric_names: List[str], tool_calling_data: List[Dict[str, Any]] = None) -> Tuple[Dict[str, float], List[Dict[str, Any]]]:
     """
     Calculate specified metrics for human-readable predictions.
     Executes ground truth SQL queries once to get reference data for comparison.
     Returns a tuple of (metrics, execution_results).
+    
+    Args:
+        predictions: List of prediction strings from the agent
+        examples: List of example dictionaries
+        dataset: Dataset instance for SQL execution
+        metric_names: List of metric names to calculate
+        tool_calling_data: Optional list of tool calling data for each prediction
     """
     
+    # Default empty tool calling data if not provided
+    if tool_calling_data is None:
+        tool_calling_data = [{"tool_calls": [], "tool_results": [], "conversation_history": []} for _ in predictions]
+    
     execution_results = []
-    for pred_answer, example in zip(predictions, examples):
+    for pred_answer, example, tool_data in zip(predictions, examples, tool_calling_data):
         result_payload = {
             "example": example,
-            "pred_answer": pred_answer.strip()
+            "pred_answer": pred_answer.strip(),
+            "tool_calls": tool_data.get("tool_calls", []),
+            "tool_results": tool_data.get("tool_results", []),
+            "conversation_history": tool_data.get("conversation_history", [])
         }
         
         # Execute ground truth SQL to get reference data

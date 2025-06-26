@@ -14,7 +14,5 @@ output:
   save_predictions: true
   save_execution_results: true
 
-agents:
-  - name: "Arctic-Text2SQL-ToolCalling"
-    agent_config_path: "configs/agents/standard_agent.yaml"
-    model_config_path: "configs/models/arctic_text2sql.yaml" 
+models:
+  - configs/models/arctic_text2sql.yaml

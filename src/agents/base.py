@@ -289,10 +289,28 @@ class BaseAgent(ABC):
         # Create context and process
         context = AgentContext(question, example, dataset)
         result_answer = self.process(context)
+        # Store context for later retrieval of tool calls
+        self._last_context = context
         return result_answer
+    
+    def get_last_tool_calls(self) -> Dict[str, Any]:
+        """
+        Get tool calling information from the last generate_answer call.
+        Returns empty dict if no tool calls were made or if method wasn't called.
+        """
+        if hasattr(self, '_last_context') and self._last_context:
+            return {
+                "tool_calls": self._last_context.tool_calls,
+                "tool_results": self._last_context.tool_results,
+                "conversation_history": self._last_context.conversation_history
+            }
+        return {"tool_calls": [], "tool_results": [], "conversation_history": []}
     
     def cleanup(self):
         """Clean up agent resources."""
+        # Clean up context reference
+        if hasattr(self, '_last_context'):
+            delattr(self, '_last_context')
         if hasattr(self.model, 'cleanup'):
             self.model.cleanup()
 
